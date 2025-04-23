@@ -4,8 +4,8 @@ namespace App\Service;
 use App\Entity\Reason;
 use App\Repository\AvailabilitySlotRepository;
 use App\Repository\AppointmentRepository;
-use App\Repository\ReasonRepository;
 use App\Repository\UnavailabilityRepository;
+use App\Repository\ReasonRepository;
 use DateInterval;
 use DateTimeImmutable;
 
@@ -15,18 +15,16 @@ class AvailabilityService
         private AvailabilitySlotRepository $slotRepo,
         private AppointmentRepository $appointmentRepo,
         private UnavailabilityRepository $unavailabilityRepo,
-        private ReasonRepository $reasonRepo
+        private ReasonRepository $reasonRepo, // 💡 injecté ici
     ) {}
 
-    public function getReasons(int $reasonId): array
-    {
-        return $this->reasonRepo->findId($reasonId);
-    }
     public function getNextAvailableSlot(int $addressId, int $reasonId): ?DateTimeImmutable
     {
         $now = new DateTimeImmutable();
         $reason = $this->getReason($reasonId);
-        if (!$reason) return null;
+        if (!$reason) {
+            return null;
+        }
 
         $duration = new DateInterval('PT' . $reason->getDurationMinutes() . 'M');
 
@@ -47,9 +45,7 @@ class AvailabilityService
 
     private function getReason(int $reasonId): ?Reason
     {
-        return $this->slotRepo->getEntityManager()
-            ->getRepository(Reason::class)
-            ->find($reasonId);
+        return $this->reasonRepo->find($reasonId); // ✅ utilise maintenant le repo directement
     }
 
     private function getMatchingSlots(int $addressId, int $reasonId, \DateTimeImmutable $date): array
@@ -57,9 +53,9 @@ class AvailabilityService
         $slots = $this->slotRepo->findAvailableSlotsFor($addressId, $reasonId, $date);
         $dayName = strtolower($date->format('l'));
 
-        return array_filter($slots, function ($slot) use ($dayName) {
-            return $slot->getDate() !== null || in_array($dayName, $slot->getWeekdays() ?? []);
-        });
+        return array_filter($slots, fn($slot) =>
+            $slot->getDate() !== null || in_array($dayName, $slot->getWeekdays() ?? [])
+        );
     }
 
     private function findAvailableTimeInSlot($slot, \DateTimeImmutable $date, DateInterval $duration, int $addressId): ?DateTimeImmutable
